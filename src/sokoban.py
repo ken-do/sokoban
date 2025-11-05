@@ -33,7 +33,7 @@ DIRECTIONS = {
 }
 
 
-def parse_level(level_map):
+def parse_test_case(test_case):
     """
     # : wall
     @ : player
@@ -47,7 +47,7 @@ def parse_level(level_map):
     walls = set()
     goals = set()
 
-    for y, row in enumerate(level_map):
+    for y, row in enumerate(test_case):
         for x, char in enumerate(row):
             if char == '#':
                 walls.add((x, y))
@@ -436,38 +436,38 @@ def main():
     for i, name in enumerate(test_names, 1):
         print(f"{i}. {name}")
 
-    print(f"{len(test_names) + 1}. Tự nhập level (custom)")
+    print(f"{len(test_names) + 1}. Tự nhập test case (custom)")
 
     choice = input(f"\nChọn test case (1-{len(test_names) + 1}): ")
 
     try:
         choice_num = int(choice)
         if choice_num == len(test_names) + 1:
-            # Nhập custom level
+            # Nhập custom test case
             print("\nNhập trạng thái ban đầu (mỗi dòng một hàng, nhấn Enter 2 lần để kết thúc):")
-            level_map = []
+            test_case = []
             while True:
                 line = input()
                 if not line:
                     break
-                level_map.append(list(line))
+                test_case.append(list(line))
         else:
             test_name = test_names[choice_num - 1]
-            level_map = TEST_CASES[test_name]
+            test_case = TEST_CASES[test_name]
     except:
         print("Lựa chọn không hợp lệ, sử dụng Micro-Cosmos 1")
         test_name = "Micro-Cosmos 1"
-        level_map = TEST_CASES[test_name]
+        test_case = TEST_CASES[test_name]
 
     print(f"\n{'=' * 60}")
     if 'test_name' in locals():
         print(f"Test case: {test_name}")
     else:
-        print(f"Test case: Custom Level")
+        print(f"Test case: Custom test case")
     print(f"{'=' * 60}")
 
-    # Parse level
-    player_pos, boxes, walls, goals = parse_level(level_map)
+    # Parse test case
+    player_pos, boxes, walls, goals = parse_test_case(test_case)
 
     if player_pos is None:
         print("Lỗi: Không tìm thấy người chơi (@) trong trạng thái ban đầu!")
@@ -484,8 +484,8 @@ def main():
     initial_state = SokobanState(player_pos, boxes, walls, goals)
 
     # Hiển thị trạng thái ban đầu
-    width = len(level_map[0])
-    height = len(level_map)
+    width = len(test_case[0])
+    height = len(test_case)
 
     print("\nTrạng thái ban đầu:")
     print_state(initial_state, width, height)
