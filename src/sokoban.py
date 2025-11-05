@@ -183,7 +183,8 @@ def bfs_search(initial_state):
             print(f"Thời gian: {elapsed_time:.2f}s")
             print(f"Số nodes đã duyệt: {nodes_expanded}")
             print(f"Kích thước queue tối đa: {max_queue_size}")
-            return reconstruct_path(current_state), nodes_expanded, elapsed_time
+            visited_count = len(visited)
+            return reconstruct_path(current_state), nodes_expanded, elapsed_time, max_queue_size, visited_count
 
         # Tạo các trạng thái kế tiếp
         for successor in get_successors(current_state):
@@ -193,7 +194,8 @@ def bfs_search(initial_state):
 
     elapsed_time = time.time() - start_time
     print(f"\n✗ Không tìm thấy lời giải sau {elapsed_time:.2f}s")
-    return None, nodes_expanded, elapsed_time
+    visited_count = len(visited)
+    return None, nodes_expanded, elapsed_time, max_queue_size, visited_count
 
 
 def manhattan_distance(pos1, pos2):
@@ -268,7 +270,8 @@ def astar_search(initial_state):
             print(f"Thời gian: {elapsed_time:.2f}s")
             print(f"Số nodes đã duyệt: {nodes_expanded}")
             print(f"Kích thước heap tối đa: {max_heap_size}")
-            return reconstruct_path(current_state), nodes_expanded, elapsed_time
+            g_score_size = len(g_score)
+            return reconstruct_path(current_state), nodes_expanded, elapsed_time, max_heap_size, g_score_size
 
         current_g = g_score[current_state]
 
@@ -284,7 +287,8 @@ def astar_search(initial_state):
 
     elapsed_time = time.time() - start_time
     print(f"\n✗ Không tìm thấy lời giải sau {elapsed_time:.2f}s")
-    return None, nodes_expanded, elapsed_time
+    g_score_size = len(g_score)
+    return None, nodes_expanded, elapsed_time, max_heap_size, g_score_size
 
 def reconstruct_path(state):
     """Tái tạo đường đi từ trạng thái đích về trạng thái đầu"""
@@ -295,6 +299,67 @@ def reconstruct_path(state):
         current = current.parent
     path.reverse()
     return path
+
+
+
+def print_comparison_tables(bfs_result, astar_result):
+    """Print two tables to the console:
+    - Time comparison table
+    - Memory (frontier) comparison table
+
+    Each result dict is expected to contain keys: 'time', 'nodes', 'length', 'frontier'.
+    """
+    # Prepare values with safe formatting and match exact markdown headers from example files
+    bfs_time = bfs_result.get('time', 0.0)
+    astar_time = astar_result.get('time', 0.0)
+    bfs_nodes = bfs_result.get('nodes', 0)
+    astar_nodes = astar_result.get('nodes', 0)
+    bfs_len = bfs_result.get('length', 0)
+    astar_len = astar_result.get('length', 0)
+    bfs_frontier = bfs_result.get('frontier', 0)
+    astar_frontier = astar_result.get('frontier', 0)
+    bfs_visited = bfs_result.get('visited', bfs_nodes)
+    astar_gscore = astar_result.get('gscore_size', 0)
+
+    # Table size and test case name are expected to be present in results dict (main will include them)
+    test_case_name = bfs_result.get('test_name', 'Test Case')
+    table_size = bfs_result.get('table_size', '')
+    num_boxes = bfs_result.get('num_boxes', '')
+
+    # Compute speedup and node reduction safely
+    speedup = (bfs_time / astar_time) if astar_time and astar_time != 0 else float('inf')
+    node_reduction = (1 - (astar_nodes / bfs_nodes)) * 100 if bfs_nodes and bfs_nodes != 0 else 0.0
+
+    # Format and print TIME COMPARISON table exactly like example
+    print('\n' + '=' * 60)
+    print('TIME COMPARISON')
+    print('=' * 60)
+    print('| Test Case        | Table size | No. of boxes | BFS Time (s) | BFS Nodes | A* Time (s) | A* Nodes | Speedup | Node Reduction |')
+    print('|------------------|-------------|---------------|---------------|------------|--------------|-----------|----------|----------------|')
+    print(f"| {test_case_name:<16} | {table_size:<11} | {str(num_boxes):<13} | {bfs_time:0.3f}         | {bfs_nodes:<10} | {astar_time:0.3f}        | {astar_nodes:<9} | {speedup:0.1f}x     | {node_reduction:0.1f}%          |")
+
+    # Memory comparison table (match example headers)
+    # Memory (MB) ≈ (Visited Nodes × 280 + Frontier × 280 + G-Score × 8) / (1024*1024)
+    NODE_SIZE = 280  # bytes per state in visited/frontier
+    GSCORE_SIZE = 8  # bytes per g-score entry
+    
+    # BFS memory: visited nodes + frontier queue (no g-score)
+    bfs_memory_bytes = (bfs_visited * NODE_SIZE) + (bfs_frontier * NODE_SIZE)
+    bfs_memory_mb = bfs_memory_bytes / (1024 * 1024)
+    
+    # A* memory: visited nodes + frontier heap + g-score dictionary
+    astar_memory_bytes = (astar_nodes * NODE_SIZE) + (astar_frontier * NODE_SIZE) + (astar_gscore * GSCORE_SIZE)
+    astar_memory_mb = astar_memory_bytes / (1024 * 1024)
+    
+    memory_reduction = (1 - (astar_memory_mb / bfs_memory_mb)) * 100 if bfs_memory_mb and bfs_memory_mb != 0 else 0.0
+
+    print('\n' + '=' * 60)
+    print('MEMORY COMPARISON')
+    print('=' * 60)
+    print('| Test Case     | BFS Visited States | BFS Max Queue Size | BFS Memory Usage (MB) | A* Visited States | A* Max Heap Size | A* G-Score Dict Size | A* Memory Usage (MB) | Memory Reduction |')
+    print('|----------------|--------------------|--------------------|------------------------|-------------------|------------------|----------------------|----------------------|------------------|')
+    # Use valid format specifiers: alignment then width then grouping comma
+    print(f"| {test_case_name:<14} | {bfs_visited:>18,} | {bfs_frontier:>18,} | {bfs_memory_mb:>22.1f} | {astar_nodes:>15,} | {astar_frontier:>16,} | {astar_gscore:>20,} | {astar_memory_mb:>22.1f} | {memory_reduction:>16.1f}% |")
 
 
 def print_state(state, width, height):
@@ -503,23 +568,30 @@ def main():
     results = {}
 
     if algo_choice in ['1', '3']:
-        path, nodes, time_taken = bfs_search(initial_state)
+        path, nodes, time_taken, frontier, visited = bfs_search(initial_state)
         if path:
             results['BFS'] = {
                 'path': path,
                 'length': len(path),
                 'nodes': nodes,
-                'time': time_taken
+                'time': time_taken,
+                'frontier': frontier,
+                'visited': visited,
+                'test_name': test_name,
+                'num_boxes': len(boxes),
+                'table_size': f"{width}x{height}"
             }
 
     if algo_choice in ['2', '3']:
-        path, nodes, time_taken = astar_search(initial_state)
+        path, nodes, time_taken, frontier, gscore_size = astar_search(initial_state)
         if path:
             results['A*'] = {
                 'path': path,
                 'length': len(path),
                 'nodes': nodes,
-                'time': time_taken
+                'time': time_taken,
+                'frontier': frontier,
+                'gscore_size': gscore_size
             }
 
     # Hiển thị kết quả
@@ -548,6 +620,9 @@ def main():
 
             print(f"- A* nhanh hơn BFS: {speedup:.2f}x")
             print(f"- A* giảm số nodes duyệt: {node_reduction:.1f}%")
+
+            # Print comparison tables (time and memory) using helper
+            print_comparison_tables(bfs_result, astar_result)
 
         # Demo solution
         demo = input("\nXem demo từng bước? (y/n): ")
