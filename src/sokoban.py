@@ -428,6 +428,7 @@ def main():
     print("=" * 60)
     print("SOKOBAN SOLVER - BFS & A*")
     print("=" * 60)
+    print("Ý nghĩa các ký tự: # (tường), @ (player), $ (box), . (goal), * (box on goal)")
 
     # Chọn test case
     print("\nCác test case có sẵn:")
@@ -443,8 +444,7 @@ def main():
         choice_num = int(choice)
         if choice_num == len(test_names) + 1:
             # Nhập custom level
-            print("\nNhập level (mỗi dòng một hàng, nhấn Enter 2 lần để kết thúc):")
-            print("Ký tự: # (tường), @ (player), $ (box), . (goal), * (box on goal)")
+            print("\nNhập trạng thái ban đầu (mỗi dòng một hàng, nhấn Enter 2 lần để kết thúc):")
             level_map = []
             while True:
                 line = input()
@@ -470,15 +470,15 @@ def main():
     player_pos, boxes, walls, goals = parse_level(level_map)
 
     if player_pos is None:
-        print("Lỗi: Không tìm thấy người chơi (@) trong level!")
+        print("Lỗi: Không tìm thấy người chơi (@) trong trạng thái ban đầu!")
         return
 
     if not boxes:
-        print("Lỗi: Không có hộp ($) trong level!")
+        print("Lỗi: Không có hộp ($) trong trạng thái ban đầu!")
         return
 
     if not goals:
-        print("Lỗi: Không có đích (.) trong level!")
+        print("Lỗi: Không có đích (.) trong trạng thái ban đầu!")
         return
 
     initial_state = SokobanState(player_pos, boxes, walls, goals)
