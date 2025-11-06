@@ -330,7 +330,7 @@ def print_comparison_tables(bfs_result, astar_result):
     speedup = (bfs_time / astar_time) if astar_time and astar_time != 0 else float('inf')
     node_reduction = (1 - (astar_nodes / bfs_nodes)) * 100 if bfs_nodes and bfs_nodes != 0 else 0.0
 
-    # Định dạng và in ra bảng SO SÁNH THỜI GIAN giống hệt ví dụ mẫu
+    # Định dạng và in ra bảng SO SÁNH THỜI GIAN
     print('\n' + '=' * 60)
     print('TIME COMPARISON')
     print('=' * 60)
@@ -353,6 +353,7 @@ def print_comparison_tables(bfs_result, astar_result):
     
     memory_reduction = (1 - (astar_memory_mb / bfs_memory_mb)) * 100 if bfs_memory_mb and bfs_memory_mb != 0 else 0.0
 
+    # Định dạng và in ra bảng SO SÁNH TIÊU TỐN BỘ NHỚ
     print('\n' + '=' * 60)
     print('MEMORY COMPARISON')
     print('=' * 60)
@@ -430,6 +431,113 @@ def animate_solution(initial_state, moves):
 
 
 TEST_CASES = {
+    # --- MICROBAN (10) ---
+    # Các bài tập kinh điển từ bộ Microban; độ khó từ dễ đến trung bình
+    "Microban 1": [
+        "####",
+        "# .#",
+        "#  ###",
+        "#*@  #",
+        "#  $ #",
+        "#  ###",
+        "####"
+    ],
+
+    "Microban 5": [
+        " #######",
+        " #     #",
+        " # .$. #",
+        "## $@$ #",
+        "#  .$. #",
+        "#      #",
+        "########"
+    ],
+
+    "Microban 7": [
+        "#######",
+        "#     #",
+        "# .$. #",
+        "# $.$ #",
+        "# .$. #",
+        "# $.$ #",
+        "#  @  #",
+        "#######"
+    ],
+
+    "Microban 10": [
+        "      #####",
+        "      #.  #",
+        "      #.# #",
+        "#######.# #",
+        "# @ $ $ $ #",
+        "# # # # ###",
+        "#       #",
+        "#########"
+    ],
+
+    "Microban 15": [
+        "     ###",
+        "######@##",
+        "#    .* #",
+        "#   #   #",
+        "#####$# #",
+        "    #   #",
+        "    #####"
+    ],
+
+    "Microban 25": [
+        " ####",
+        " #  ###",
+        " # $$ #",
+        "##... #",
+        "#  @$ #",
+        "#   ###",
+        "#####"
+    ],
+
+    "Microban 36": [
+        "####",
+        "#  ############",
+        "# $ $ $ $ $ @ #",
+        "# .....       #",
+        "###############"
+    ],
+
+    "Microban 56": [
+        "#####",
+        "#   ###",
+        "#  $  #",
+        "##* . #",
+        " #   @#",
+        " ######"
+    ],
+
+    "Microban 70": [
+        "#####",
+        "# @ ####",
+        "#      #",
+        "# $ $$ #",
+        "##$##  #",
+        "#   ####",
+        "# ..  #",
+        "##..  #",
+        " ###  #",
+        "   ####"
+    ],
+
+    "Microban 93": [
+        " #########",
+        "##   #   ##",
+        "#    #    #",
+        "#  $ # $  #",
+        "#   *.*   #",
+        "####.@.####",
+        "#   *.*   #",
+        "#  $ # $  #",
+        "#    #    #",
+        "##   #   ##",
+        " #########"
+    ],
     # --- MINICOSMOS (2) ---
     # Đơn giản với ít hộp và đích; dễ giải quyết
     "Minicosmos 03": [
