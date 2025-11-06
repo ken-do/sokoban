@@ -303,13 +303,13 @@ def reconstruct_path(state):
 
 
 def print_comparison_tables(bfs_result, astar_result):
-    """Print two tables to the console:
-    - Time comparison table
-    - Memory (frontier) comparison table
+    """In ra hai bảng so sánh trên console:
+    - Bảng so sánh thời gian
+    - Bảng so sánh bộ nhớ
 
-    Each result dict is expected to contain keys: 'time', 'nodes', 'length', 'frontier'.
+    Mỗi dict kết quả được kỳ vọng sẽ chứa các khóa: 'time', 'nodes', 'length', 'frontier'.
     """
-    # Prepare values with safe formatting and match exact markdown headers from example files
+    # Chuẩn bị giá trị với định dạng an toàn và khớp chính xác với tiêu đề markdown trong các file ví dụ
     bfs_time = bfs_result.get('time', 0.0)
     astar_time = astar_result.get('time', 0.0)
     bfs_nodes = bfs_result.get('nodes', 0)
@@ -321,16 +321,16 @@ def print_comparison_tables(bfs_result, astar_result):
     bfs_visited = bfs_result.get('visited', bfs_nodes)
     astar_gscore = astar_result.get('gscore_size', 0)
 
-    # Table size and test case name are expected to be present in results dict (main will include them)
+    # Kích thước bảng và tên test case được kỳ vọng có trong dict kết quả (hàm main sẽ thêm vào)
     test_case_name = bfs_result.get('test_name', 'Test Case')
     table_size = bfs_result.get('table_size', '')
     num_boxes = bfs_result.get('num_boxes', '')
 
-    # Compute speedup and node reduction safely
+    # Tính toán tỉ lệ tăng tốc (speedup) và phần trăm giảm số node một cách an toàn
     speedup = (bfs_time / astar_time) if astar_time and astar_time != 0 else float('inf')
     node_reduction = (1 - (astar_nodes / bfs_nodes)) * 100 if bfs_nodes and bfs_nodes != 0 else 0.0
 
-    # Format and print TIME COMPARISON table exactly like example
+    # Định dạng và in ra bảng SO SÁNH THỜI GIAN giống hệt ví dụ mẫu
     print('\n' + '=' * 60)
     print('TIME COMPARISON')
     print('=' * 60)
@@ -338,16 +338,16 @@ def print_comparison_tables(bfs_result, astar_result):
     print('|------------------|-------------|---------------|---------------|------------|--------------|-----------|----------|----------------|')
     print(f"| {test_case_name:<16} | {table_size:<11} | {str(num_boxes):<13} | {bfs_time:0.3f}         | {bfs_nodes:<10} | {astar_time:0.3f}        | {astar_nodes:<9} | {speedup:0.1f}x     | {node_reduction:0.1f}%          |")
 
-    # Memory comparison table (match example headers)
-    # Memory (MB) ≈ (Visited Nodes × 280 + Frontier × 280 + G-Score × 8) / (1024*1024)
-    NODE_SIZE = 280  # bytes per state in visited/frontier
-    GSCORE_SIZE = 8  # bytes per g-score entry
+    # Bảng so sánh bộ nhớ
+    # Bộ nhớ (MB) ≈ (Số node đã duyệt × 280 + Frontier × 280 + G-Score × 8) / (1024*1024)
+    NODE_SIZE = 280  # số byte cho mỗi trạng thái trong visited/frontier
+    GSCORE_SIZE = 8  # số byte cho mỗi phần tử trong g-score
     
-    # BFS memory: visited nodes + frontier queue (no g-score)
+    # Bộ nhớ BFS: node đã duyệt + hàng đợi frontier (không có g-score)
     bfs_memory_bytes = (bfs_visited * NODE_SIZE) + (bfs_frontier * NODE_SIZE)
     bfs_memory_mb = bfs_memory_bytes / (1024 * 1024)
     
-    # A* memory: visited nodes + frontier heap + g-score dictionary
+    # Bộ nhớ A*: node đã duyệt + heap frontier + dictionary g-score
     astar_memory_bytes = (astar_nodes * NODE_SIZE) + (astar_frontier * NODE_SIZE) + (astar_gscore * GSCORE_SIZE)
     astar_memory_mb = astar_memory_bytes / (1024 * 1024)
     
@@ -358,7 +358,7 @@ def print_comparison_tables(bfs_result, astar_result):
     print('=' * 60)
     print('| Test Case     | BFS Visited States | BFS Max Queue Size | BFS Memory Usage (MB) | A* Visited States | A* Max Heap Size | A* G-Score Dict Size | A* Memory Usage (MB) | Memory Reduction |')
     print('|----------------|--------------------|--------------------|------------------------|-------------------|------------------|----------------------|----------------------|------------------|')
-    # Use valid format specifiers: alignment then width then grouping comma
+    # Sử dụng định dạng hợp lệ: căn lề, độ rộng và dấu phân cách hàng nghìn
     print(f"| {test_case_name:<14} | {bfs_visited:>18,} | {bfs_frontier:>18,} | {bfs_memory_mb:>22.1f} | {astar_nodes:>15,} | {astar_frontier:>16,} | {astar_gscore:>20,} | {astar_memory_mb:>22.1f} | {memory_reduction:>16.1f}% |")
 
 
@@ -430,62 +430,119 @@ def animate_solution(initial_state, moves):
 
 
 TEST_CASES = {
-    "Micro-Cosmos 1": [
-        ['#', '#', '#', '#', '#'],
-        ['#', '.', '@', ' ', '#'],
-        ['#', '$', ' ', ' ', '#'],
-        ['#', ' ', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#']
+    # --- MINICOSMOS (2) ---
+    # Đơn giản với ít hộp và đích; dễ giải quyết
+    "Minicosmos 03": [
+        "  #####",
+        "###   #",
+        "# $ # ##",
+        "# #  . #",
+        "# .  # #",
+        "##$#.$ #",
+        " #@  ###",
+        " #####"
+    ],
+    "Minicosmos 15": [
+        "   ####",
+        "####  #",
+        "# $   #",
+        "#  .# ##",
+        "## #.  #",
+        "# @  $ #",
+        "#   ####",
+        "#####"
     ],
 
-    "Micro-Cosmos 2": [
-        ['#', '#', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '$', '@', ' ', '#'],
-        ['#', ' ', '.', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#']
+    # --- MICROCOSMOS (2) ---
+    # Phức tạp hơn với nhiều hộp và đích; yêu cầu chiến lược tốt hơn
+    "Microcosmos 02": [
+        "  ####",
+        "###  #",
+        "# $  #",
+        "#  .###",
+        "## #  #",
+        " #@  ##",
+        "  ####"
+    ],
+    "Microcosmos 07": [
+        "#####",
+        "#@$.#",
+        "# $ #",
+        "# . #",
+        "#####"
     ],
 
-    "Mini-Cosmos 1": [
-        ['#', '#', '#', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '.', '$', '.', ' ', '#'],
-        ['#', ' ', '$', '.', '$', ' ', '#'],
-        ['#', ' ', '.', '$', '.', ' ', '#'],
-        ['#', ' ', ' ', '@', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#', '#']
+    # --- NABOKOSMOS (3) ---
+    # Phức tạp với nhiều hộp và đích; yêu cầu chiến lược nâng cao và tránh deadlock
+    "Nabokosmos 04": [
+        "#########",
+        "# .@.$. #",
+        "# # $   #",
+        "# ##$####",
+        "#   $  ##",
+        "### .   ##",
+        "  ###    #",
+        "    ##   #",
+        "     #####"
+    ],
+    "Nabokosmos 10": [
+        " ####",
+        " #  ######",
+        " #       #",
+        "## # #.$ #",
+        "#  * ## ##",
+        "# ** # @#",
+        "###   * #",
+        "  ####  #",
+        "     ####"
+    ],
+    "Nabokosmos 21": [
+        "  #####",
+        " ##   # ",
+        "##  #.##",
+        "# @ $  #",
+        "# * *  ###",
+        "##*#*#   #",
+        " #       #",
+        " ##  #####",
+        "  ####"
     ],
 
-    "Medium 1": [
-        ['#', '#', '#', '#', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '.', '$', '$', '.', ' ', '#'],
-        ['#', ' ', ' ', '.', '.', ' ', ' ', '#'],
-        ['#', ' ', ' ', '@', ' ', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#', '#', '#']
+    # --- PICOKOSMOS (3) ---
+    # Rất phức tạp với nhiều hộp và đích; yêu cầu chiến lược tinh vi và tối ưu hóa
+    "Picokosmos 02": [
+        "       #####",
+        "     ###   #",
+        "    ## . # #",
+        "   ##  $$  #",
+        "  ## *$. ###",
+        " ## $  ###",
+        "## .$. #",
+        "#  @ ###",
+        "#  . #",
+        "######"
     ],
-
-    "Simple Test": [
-        ['#', '#', '#', '#', '#', '#'],
-        ['#', '@', ' ', '$', '.', '#'],
-        ['#', '#', '#', '#', '#', '#']
+    "Picokosmos 06": [
+        "  ####",
+        " ##  ###",
+        "##  .  #",
+        "# $.$.$##",
+        "# .$.$. #",
+        "##$ #.$ #",
+        " #  @  ##",
+        " #######"
     ],
-
-    "Two Boxes": [
-        ['#', '#', '#', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '$', '@', '$', ' ', '#'],
-        ['#', ' ', '.', ' ', '.', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#', '#']
-    ],
-
-    "Corner Challenge": [
-        ['#', '#', '#', '#', '#', '#'],
-        ['#', ' ', ' ', ' ', ' ', '#'],
-        ['#', ' ', '#', '#', ' ', '#'],
-        ['#', '.', '#', '#', '$', '#'],
-        ['#', ' ', '@', ' ', ' ', '#'],
-        ['#', '#', '#', '#', '#', '#']
+    "Picokosmos 14": [
+        "  #######",
+        " ##  #  #",
+        " #      #",
+        "## # #  #",
+        "#  *** ##",
+        "#@#*  $#",
+        "#  *** #",
+        "### .  #",
+        "  ###  #",
+        "    ####"
     ]
 }
 
