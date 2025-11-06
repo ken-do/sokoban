@@ -714,7 +714,7 @@ def main():
     initial_state = SokobanState(player_pos, boxes, walls, goals)
 
     # Hiển thị trạng thái ban đầu
-    width = len(test_case[0])
+    width = max(len(row) for row in test_case)
     height = len(test_case)
 
     print("\nTrạng thái ban đầu:")
