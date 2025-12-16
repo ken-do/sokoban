@@ -1,7 +1,5 @@
 import numpy as np
 from typing import Tuple, List, Optional
-import os
-import json
 import random
 import time
 
@@ -336,95 +334,22 @@ class SmartRandomAgent:
 
 
 class MinimaxAgent:
-    def __init__(self, name="Minimax_90%", max_depth=3, search_radius=2):
+    def __init__(self, name="Minimax_SuperDef", max_depth=3, search_radius=2):
         self.name = name
         self.max_depth = max_depth
         self.search_radius = search_radius
         self.nodes_explored = 0
-        self.transposition_table = {}  # Persistent across entire game
-        self.zobrist_hash = {}  # Board hashing for TT lookup
-        self.opening_book = self._init_opening_book()
-        self.opening_book_file = self._load_opening_book_file()
-        self.endgame_db = self._load_endgame_db()
-
-    def _init_opening_book(self):
-        """Opening book cho first 20 moves"""
-        book = {
-            0: (7, 7),  # Move 1: Center
-            1: [(6, 6), (6, 8), (8, 6), (8, 8)],  # Move 2: Corners
-            2: [(6, 7), (7, 6), (7, 8), (8, 7)],  # Move 3: Adjacent to center
-        }
-        return book
-
-    def _data_path(self, filename: str) -> str:
-        base = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        return os.path.join(base, 'data', filename)
-
-    def _load_opening_book_file(self):
-        path = self._data_path('opening_book.json')
-        try:
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                # Convert keys to int and values to list of tuples
-                parsed = {}
-                for k, v in data.items():
-                    parsed[int(k)] = [tuple(move) for move in v]
-                return parsed
-        except Exception:
-            pass
-        return None
-
-    def _load_endgame_db(self):
-        path = self._data_path('endgame_db.json')
-        try:
-            if os.path.exists(path):
-                with open(path, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-        except Exception:
-            pass
-        return {}
-
-    def _save_endgame_db(self):
-        path = self._data_path('endgame_db.json')
-        try:
-            with open(path, 'w', encoding='utf-8') as f:
-                json.dump(self.endgame_db, f)
-        except Exception:
-            pass
-
-
 
     def get_move(self, game: GomokuGame) -> Tuple[int, int]:
         """
         Tìm nước đi tối ưu:
-        1. Opening book (first 3 moves)
-        2. Safety Layer: Kiểm tra thắng ngay/thua ngay.
-        3. Minimax: Duyệt cây tìm kiếm với memoization.
+        1. Safety Layer: Kiểm tra thắng ngay/thua ngay.
+        2. Minimax: Duyệt cây tìm kiếm.
         """
         self.nodes_explored = 0
         valid_moves = self._get_smart_moves(game)
         if not valid_moves:
             return None
-
-        move_count = len(game.move_history)
-
-        # Opening book optimization (first 5 moves)
-        if move_count < 10:
-            # Prefer file-based book if available
-            if self.opening_book_file and move_count in self.opening_book_file:
-                candidates = self.opening_book_file[move_count]
-                valid_book_moves = [(r, c) for (r, c) in candidates if game.is_valid_move(r, c)]
-                if valid_book_moves:
-                    return random.choice(valid_book_moves)
-            # Fallback to built-in book
-            if move_count in self.opening_book:
-                candidates = self.opening_book[move_count]
-                if isinstance(candidates, tuple):
-                    candidates = [candidates]
-                valid_book_moves = [(r, c) for (r, c) in candidates if game.is_valid_move(r, c)]
-                if valid_book_moves:
-                    return random.choice(valid_book_moves)
 
         # Nước đầu tiên luôn đánh giữa
         if len(game.move_history) == 0:
@@ -434,24 +359,11 @@ class MinimaxAgent:
         my_player = game.current_player
         opponent = 3 - my_player
 
-        # Endgame DB lookup for late game
-        if move_count > 180:
-            key = (game.board.tobytes().hex(), game.current_player)
-            if key in self.endgame_db:
-                r, c = self.endgame_db[key]
-                if game.is_valid_move(r, c):
-                    return (r, c)
-
         # Check 1: KILL MOVE (Có nước thắng -> Đánh ngay)
         for r, c in valid_moves:
             game.board[r][c] = my_player
             if game.check_winner(r, c):
                 game.board[r][c] = 0
-                # Save to endgame DB for late game states
-                if move_count > 160:
-                    key = (game.board.tobytes().hex(), my_player)
-                    self.endgame_db[key] = (r, c)
-                    self._save_endgame_db()
                 return (r, c)
             game.board[r][c] = 0
 
@@ -464,135 +376,31 @@ class MinimaxAgent:
             game.board[r][c] = 0
 
         if forced_blocks:
+            # Nếu bắt buộc phải chặn, chọn nước chặn tốt nhất (theo hàm đánh giá nhanh)
+            # Hoặc đơn giản là lấy nước đầu tiên tìm thấy
             return forced_blocks[0]
 
-        # Check 3: Detect losing patterns and strong opponent threats (open-four/double-three)
-        avoid_moves = set()
-        for r, c in valid_moves:
-            # simulate our move
-            game.board[r][c] = my_player
-            # does opponent have a kill next?
-            opp_kill = False
-            for orr, occ in self._get_smart_moves(game):
-                game.board[orr][occ] = opponent
-                if game.check_winner(orr, occ):
-                    opp_kill = True
-                    game.board[orr][occ] = 0
-                    break
-                game.board[orr][occ] = 0
-            # analyze if our move allows opponent to create open-four or double-three
-            opp_stats_after = self._analyze_threats(game, opponent)
-            game.board[r][c] = 0
-            if opp_kill or opp_stats_after['open_four'] > 0 or opp_stats_after['open_three'] >= 2:
-                avoid_moves.add((r, c))
-                # Record into endgame DB to avoid in future similar states
-                key = (game.board.tobytes().hex(), my_player, 'avoid')
-                current = self.endgame_db.get(key, [])
-                if [r, c] not in current:
-                    current.append([r, c])
-                    self.endgame_db[key] = current
-                    self._save_endgame_db()
+        # =================================================================
+        # 2. MINIMAX ALGORITHM
+        # =================================================================
+
+        best_move = None
+        best_value = float('-inf')
+        alpha = float('-inf')
+        beta = float('inf')
 
         # Sắp xếp nước đi để cắt tỉa Alpha-Beta hiệu quả hơn
         sorted_moves = self._sort_moves_by_priority(game, valid_moves, my_player)
-        # Filter out avoid moves if we have alternatives
-        if avoid_moves and len(sorted_moves) > len(avoid_moves):
-            sorted_moves = [m for m in sorted_moves if m not in avoid_moves]
 
-        # Tactical forcing: create strong threats immediately (open-four/doubles)
-        for r, c in sorted_moves[:20]:
-            game.board[r][c] = my_player
-            my_stats = self._analyze_threats(game, my_player)
-            game.board[r][c] = 0
-            if my_stats['open_four'] > 0 or my_stats['four'] >= 2 or my_stats['open_three'] >= 2:
-                return (r, c)
+        # BEAM SEARCH: Chỉ lấy Top 20 nước đi tốt nhất để duyệt sâu
+        # Giúp code chạy nhanh hơn và tập trung vào các nước quan trọng
+        moves_to_search = sorted_moves[:20] if len(sorted_moves) > 20 else sorted_moves
 
-        # Block opponent's immediate strong threats (open-four/doubles)
-        for r, c in sorted_moves[:20]:
-            game.board[r][c] = opponent
-            opp_stats = self._analyze_threats(game, opponent)
-            game.board[r][c] = 0
-            if opp_stats['open_four'] > 0 or opp_stats['four'] >= 2 or opp_stats['open_three'] >= 2:
-                return (r, c)
-
-        # =================================================================
-        # DOUBLE-THREE FORCING: Look for guaranteed winning patterns
-        # =================================================================
-        double_three_move = self._find_double_three_move(game, my_player, sorted_moves[:20])
-        if double_three_move:
-            return double_three_move
-
-        # =================================================================
-        # LATE-GAME 2-PLY THREAT SOLVER
-        # Search our move → opponent response → our reply for forced threats
-        # =================================================================
-        if move_count > 160:  # Back to conservative timing
-            for r, c in sorted_moves[:12]:
-                if not game.is_valid_move(r, c):
-                    continue
-                game.make_move(r, c)
-                opp_moves = self._get_smart_moves(game)[:10]
-                forced = False
-                for orr, occ in opp_moves:
-                    if not game.is_valid_move(orr, occ):
-                        continue
-                    game.make_move(orr, occ)
-                    # our reply candidates
-                    reply_moves = self._get_smart_moves(game)[:10]
-                    for rr, cc in reply_moves:
-                        if not game.is_valid_move(rr, cc):
-                            continue
-                        game.board[rr][cc] = my_player
-                        # check immediate win or strong threats
-                        if game.check_winner(rr, cc):
-                            forced = True
-                            game.board[rr][cc] = 0
-                            break
-                        stats_reply = self._analyze_threats(game, my_player)
-                        game.board[rr][cc] = 0
-                        if stats_reply['open_four'] > 0 or stats_reply['open_three'] >= 2:
-                            forced = True
-                            break
-                    game.undo_move()
-                    if forced:
-                        break
-                game.undo_move()
-                if forced:
-                    return (r, c)
-
-        # =================================================================
-        # VCF SOLVER: Look for forced winning sequences
-        # =================================================================
-        vcf_move = self._find_vcf_move(game, my_player, sorted_moves[:25])
-        if vcf_move:
-            return vcf_move
-
-        # =================================================================
-        # 2. MINIMAX ALGORITHM WITH MEMOIZATION
-        # =================================================================
-
-        best_move = None
-        best_value = float('-inf')
-        alpha = float('-inf')
-        beta = float('inf')
-
-        # =================================================================
-        # MINIMAX WITH DEPTH 4 AND EXTENDED TRANSPOSITION TABLE
-        # =================================================================
-        best_move = None
-        best_value = float('-inf')
-        alpha = float('-inf')
-        beta = float('inf')
-
-        # Use top moves from priority ordering (wider beam for better coverage)
-        # Expanded beam width to explore more tactical options
-        search_moves = sorted_moves[:22] if len(sorted_moves) > 22 else sorted_moves
-
-        for move in search_moves:
+        for move in moves_to_search:
             r, c = move
             game.make_move(r, c)
 
-            # Minimax call with depth 4
+            # Gọi đệ quy Minimax
             value = self._minimax(game, self.max_depth - 1, alpha, beta, False, my_player)
 
             game.undo_move()
@@ -607,42 +415,30 @@ class MinimaxAgent:
 
         return best_move if best_move else (valid_moves[0] if valid_moves else None)
 
-
     def _minimax(self, game, depth, alpha, beta, is_maximizing, original_player):
-        # Include side to move in hash to avoid collisions
-        self._hash_player = game.current_player
-        # Check transposition table
-        board_hash = self._hash_board(game.board)
-        if board_hash in self.transposition_table:
-            return self.transposition_table[board_hash]
-
         self.nodes_explored += 1
 
         # Kiểm tra kết thúc game
         game_over, winner = game.is_game_over()
         if game_over:
             if winner == original_player:
-                return 100000000 + depth * 1000
+                return 100000000 + depth * 1000  # Thắng càng sớm càng tốt
             elif winner == 0:
-                return -1000000
+                return 0
             else:
-                return -100000000 - depth * 1000
+                return -100000000 - depth * 1000  # Thua càng muộn càng tốt
 
         if depth == 0:
-            result = self.evaluate_board(game, original_player)
-            self.transposition_table[board_hash] = result
-            return result
+            return self.evaluate_board(game, original_player)
 
         # Lấy nước đi
         moves = self._get_smart_moves(game)
-        if not moves: 
-            return 0
+        if not moves: return 0
 
-        # Sắp xếp sơ bộ (ưu tiên phòng thủ/tấn công) và cắt tỉa
+        # Sắp xếp sơ bộ (chỉ cần thiết ở các tầng trên cao, tầng lá không cần thiết lắm)
         if depth >= 2:
             current_turn = original_player if is_maximizing else (3 - original_player)
-            inner_width = 7
-            moves = self._sort_moves_by_priority(game, moves, current_turn)[:inner_width]
+            moves = self._sort_moves_by_priority(game, moves, current_turn)[:15]  # Cắt tỉa mạnh
 
         if is_maximizing:
             best_value = float('-inf')
@@ -653,7 +449,6 @@ class MinimaxAgent:
                 best_value = max(best_value, value)
                 alpha = max(alpha, value)
                 if beta <= alpha: break
-            self.transposition_table[board_hash] = best_value
             return best_value
         else:
             best_value = float('inf')
@@ -664,20 +459,12 @@ class MinimaxAgent:
                 best_value = min(best_value, value)
                 beta = min(beta, value)
                 if beta <= alpha: break
-            self.transposition_table[board_hash] = best_value
             return best_value
-
-    def _hash_board(self, board):
-        """Simple hash of board state"""
-        return hash((board.tobytes(), getattr(self, "_hash_player", 0)))
-
 
     def evaluate_board(self, game: GomokuGame, original_player: int) -> float:
         """
-        Hàm đánh giá tối ưu cho Depth 4 + Memoization:
-        - Aggressive scoring cho win-conditions
-        - Adaptive defense based on board state
-        - Stronger threat detection
+        Hàm đánh giá tối ưu cho Depth 3:
+        Ưu tiên PHÒNG THỦ GẤP 4 LẦN.
         """
         opponent = 3 - original_player
 
@@ -685,41 +472,30 @@ class MinimaxAgent:
         my_stats = self._analyze_threats(game, original_player)
         opp_stats = self._analyze_threats(game, opponent)
 
-        # 1. ĐIỀU KIỆN THẮNG/THUA CHẮC CHẮN
+        # 1. ĐIỀU KIỆN THẮNG/THUA CHẮC CHẮN (Checkmate)
         if my_stats['five'] > 0: return 100000000
         if opp_stats['five'] > 0: return -100000000
 
-        if my_stats['open_four'] > 0: return 98000000
-        if opp_stats['open_four'] > 0: return -99500000
+        if my_stats['open_four'] > 0: return 90000000
+        if opp_stats['open_four'] > 0: return -95000000  # Đối thủ có Open 4 -> Coi như thua
 
-        # 2. ADAPTIVE SCORING - Tăng aggressive khi leading
-        moves_count = len(game.move_history)
-        
-        # Balanced aggressive strategy
-        if moves_count > 150:  # Very late game
-            aggressive_mul = 2.5
-            defense_mul = 5.0
-        elif moves_count > 100:  # Mid-late game
-            aggressive_mul = 2.5
-            defense_mul = 6.0
-        else:  # Early/mid game - BE MORE AGGRESSIVE EARLY
-            aggressive_mul = 2.0
-            defense_mul = 6.5
+        # 2. TÍNH ĐIỂM
+        # Điểm tấn công
+        my_score = (my_stats['four'] * 10000 +
+                    my_stats['open_three'] * 8000 +  # Open 3 rất giá trị
+                    my_stats['three'] * 500 +
+                    my_stats['open_two'] * 100)
 
-        # Điểm tấn công (tăng mạnh để ưu tiên tấn công)
-        my_score = (my_stats['four'] * 48000 * aggressive_mul +     
-            my_stats['open_three'] * 40000 * aggressive_mul +       
-                my_stats['three'] * 4000 +                          
-                my_stats['open_two'] * 1500)
+        # Điểm đe dọa của đối thủ
+        opp_score = (opp_stats['four'] * 10000 +
+                     opp_stats['open_three'] * 8000 +
+                     opp_stats['three'] * 500 +
+                     opp_stats['open_two'] * 100)
 
-        # Điểm đe dọa của đối thủ - DEFENSIVE
-        opp_score = (opp_stats['four'] * 50000 +                   
-             opp_stats['open_three'] * 45000 +                     
-                 opp_stats['three'] * 4500 +                       
-                 opp_stats['open_two'] * 2000)
-
-        # TRỌNG SỐ PHÒNG THỦ: Adaptive
-        return my_score - (opp_score * defense_mul)
+        # TRỌNG SỐ PHÒNG THỦ:
+        # Depth thấp -> "Mù" tương lai -> Phải sợ đối thủ hơn bình thường.
+        # Hệ số 4.0 đảm bảo AI sẽ bỏ tấn công để quay về thủ nếu đối thủ có Open 3.
+        return my_score - (opp_score * 4.0)
 
     def _analyze_threats(self, game, player) -> dict:
         """
@@ -784,63 +560,6 @@ class MinimaxAgent:
 
         return stats
 
-    def _find_double_three_move(self, game: GomokuGame, player: int, candidate_moves: List) -> Optional[Tuple[int, int]]:
-        """
-        Find a move that creates a double-three (two open-threes in perpendicular directions).
-        If the opponent can only block one, we create a winning threat.
-        Returns the move, or None if none found.
-        """
-        opponent = 3 - player
-        
-        for r, c in candidate_moves:
-            if not game.is_valid_move(r, c):
-                continue
-            
-            # Try placing our stone
-            game.board[r][c] = player
-            
-            # Count open-threes after this move
-            open_three_count = 0
-            three_directions = []
-            
-            directions = [(0, 1), (1, 0), (1, 1), (1, -1)]
-            for dx, dy in directions:
-                count = 1
-                open_ends = 0
-                
-                for d in [1, -1]:
-                    rr, cc = r + dx * d, c + dy * d
-                    while 0 <= rr < game.board_size and 0 <= cc < game.board_size:
-                        if game.board[rr][cc] == player:
-                            count += 1
-                            rr += dx * d
-                            cc += dy * d
-                        elif game.board[rr][cc] == 0:
-                            open_ends += 1
-                            break
-                        else:
-                            break
-                
-                if count == 3 and open_ends == 2:
-                    open_three_count += 1
-                    three_directions.append((dx, dy))
-            
-            game.board[r][c] = 0
-            
-            # Double-three found! Opponent can only block one.
-            if open_three_count >= 2:
-                return (r, c)
-        
-        return None
-
-    def _find_vcf_move(self, game: GomokuGame, player: int, candidate_moves: List) -> Optional[Tuple[int, int]]:
-        """
-        Lightweight VCF solver - detects guaranteed winning positions.
-        Returns None; relies on double-three and tactical forcing in get_move instead.
-        """
-        # VCF search is too expensive for online play; rely on threat-detection layer
-        return None
-
     def _get_smart_moves(self, game: GomokuGame) -> List[Tuple[int, int]]:
         """Lấy các nước đi xung quanh các quân cờ hiện có"""
         if len(game.move_history) == 0:
@@ -877,9 +596,9 @@ class MinimaxAgent:
             p -= (abs(r - center) + abs(c - center))
 
             # Đánh giá nhanh tấn công
-            p += self._quick_evaluate(game, r, c, player) * 1.2
-            # Đánh giá nhanh phòng thủ (tăng trọng số cao)
-            p += self._quick_evaluate(game, r, c, opponent) * 4.0
+            p += self._quick_evaluate(game, r, c, player)
+            # Đánh giá nhanh phòng thủ (quan trọng)
+            p += self._quick_evaluate(game, r, c, opponent) * 1.5
 
             scored.append((p, (r, c)))
 
@@ -910,11 +629,11 @@ class MinimaxAgent:
                         break
 
             if count >= 4:
-                score += 100000  # CRITICAL - tấn công aggressive
+                score += 10000
             elif count == 3:
-                score += 15000 if open_ends == 2 else 2000
+                score += 1000 if open_ends > 0 else 0
             elif count == 2 and open_ends == 2:
-                score += 500
+                score += 100
 
         return score
 
