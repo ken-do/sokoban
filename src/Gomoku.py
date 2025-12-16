@@ -392,9 +392,24 @@ class MinimaxAgent:
         # Sắp xếp nước đi để cắt tỉa Alpha-Beta hiệu quả hơn
         sorted_moves = self._sort_moves_by_priority(game, valid_moves, my_player)
 
-        # BEAM SEARCH: Chỉ lấy Top 20 nước đi tốt nhất để duyệt sâu
-        # Giúp code chạy nhanh hơn và tập trung vào các nước quan trọng
-        moves_to_search = sorted_moves[:20] if len(sorted_moves) > 20 else sorted_moves
+        # Tactical forcing: create strong threats immediately (open-four/doubles)
+        for r, c in sorted_moves[:10]:
+            game.board[r][c] = my_player
+            my_stats = self._analyze_threats(game, my_player)
+            game.board[r][c] = 0
+            if my_stats['open_four'] > 0 or my_stats['four'] >= 2 or my_stats['open_three'] >= 2:
+                return (r, c)
+
+        # Block opponent's immediate strong threats (open-four/doubles)
+        for r, c in sorted_moves[:10]:
+            game.board[r][c] = opponent
+            opp_stats = self._analyze_threats(game, opponent)
+            game.board[r][c] = 0
+            if opp_stats['open_four'] > 0 or opp_stats['four'] >= 2 or opp_stats['open_three'] >= 2:
+                return (r, c)
+
+        # BEAM SEARCH: Top 15 nước đi tốt nhất (cân bằng tốc độ và chất lượng)
+        moves_to_search = sorted_moves[:15] if len(sorted_moves) > 15 else sorted_moves
 
         for move in moves_to_search:
             r, c = move
@@ -424,7 +439,7 @@ class MinimaxAgent:
             if winner == original_player:
                 return 100000000 + depth * 1000  # Thắng càng sớm càng tốt
             elif winner == 0:
-                return 0
+                return -50000  # Penalty cho DRAW - khuyến khích tấn công
             else:
                 return -100000000 - depth * 1000  # Thua càng muộn càng tốt
 
@@ -435,10 +450,10 @@ class MinimaxAgent:
         moves = self._get_smart_moves(game)
         if not moves: return 0
 
-        # Sắp xếp sơ bộ (chỉ cần thiết ở các tầng trên cao, tầng lá không cần thiết lắm)
+        # Sắp xếp sơ bộ (ưu tiên phòng thủ/tấn công) và cắt tỉa
         if depth >= 2:
             current_turn = original_player if is_maximizing else (3 - original_player)
-            moves = self._sort_moves_by_priority(game, moves, current_turn)[:15]  # Cắt tỉa mạnh
+            moves = self._sort_moves_by_priority(game, moves, current_turn)[:8]
 
         if is_maximizing:
             best_value = float('-inf')
@@ -476,26 +491,24 @@ class MinimaxAgent:
         if my_stats['five'] > 0: return 100000000
         if opp_stats['five'] > 0: return -100000000
 
-        if my_stats['open_four'] > 0: return 90000000
-        if opp_stats['open_four'] > 0: return -95000000  # Đối thủ có Open 4 -> Coi như thua
+        if my_stats['open_four'] > 0: return 98000000
+        if opp_stats['open_four'] > 0: return -99500000  # Phòng thủ tối ưu
 
-        # 2. TÍNH ĐIỂM
-        # Điểm tấn công
-        my_score = (my_stats['four'] * 10000 +
-                    my_stats['open_three'] * 8000 +  # Open 3 rất giá trị
-                    my_stats['three'] * 500 +
-                    my_stats['open_two'] * 100)
+        # 2. TÍNH ĐIỂM - AGGRESSIVE FOR 90%
+        # Điểm tấn công (tăng mạnh để ưu tiên tấn công)
+        my_score = (my_stats['four'] * 35000 +
+                my_stats['open_three'] * 28000 +
+                my_stats['three'] * 2200 +
+                my_stats['open_two'] * 600)
 
         # Điểm đe dọa của đối thủ
-        opp_score = (opp_stats['four'] * 10000 +
-                     opp_stats['open_three'] * 8000 +
-                     opp_stats['three'] * 500 +
-                     opp_stats['open_two'] * 100)
+        opp_score = (opp_stats['four'] * 35000 +
+                 opp_stats['open_three'] * 28000 +
+                 opp_stats['three'] * 2200 +
+                 opp_stats['open_two'] * 600)
 
-        # TRỌNG SỐ PHÒNG THỦ:
-        # Depth thấp -> "Mù" tương lai -> Phải sợ đối thủ hơn bình thường.
-        # Hệ số 4.0 đảm bảo AI sẽ bỏ tấn công để quay về thủ nếu đối thủ có Open 3.
-        return my_score - (opp_score * 4.0)
+        # TRỌNG SỐ PHÒNG THỦ: 7.5x (cân bằng cao)
+        return my_score - (opp_score * 7.5)
 
     def _analyze_threats(self, game, player) -> dict:
         """
@@ -596,9 +609,9 @@ class MinimaxAgent:
             p -= (abs(r - center) + abs(c - center))
 
             # Đánh giá nhanh tấn công
-            p += self._quick_evaluate(game, r, c, player)
-            # Đánh giá nhanh phòng thủ (quan trọng)
-            p += self._quick_evaluate(game, r, c, opponent) * 1.5
+            p += self._quick_evaluate(game, r, c, player) * 1.2
+            # Đánh giá nhanh phòng thủ (tăng trọng số cao)
+            p += self._quick_evaluate(game, r, c, opponent) * 4.0
 
             scored.append((p, (r, c)))
 
@@ -629,11 +642,11 @@ class MinimaxAgent:
                         break
 
             if count >= 4:
-                score += 10000
+                score += 50000  # Critical pattern
             elif count == 3:
-                score += 1000 if open_ends > 0 else 0
+                score += 8000 if open_ends == 2 else 1200
             elif count == 2 and open_ends == 2:
-                score += 100
+                score += 250
 
         return score
 
