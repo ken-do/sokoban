@@ -500,7 +500,7 @@ class MinimaxAgent:
             sorted_moves = [m for m in sorted_moves if m not in avoid_moves]
 
         # Tactical forcing: create strong threats immediately (open-four/doubles)
-        for r, c in sorted_moves[:15]:
+        for r, c in sorted_moves[:20]:
             game.board[r][c] = my_player
             my_stats = self._analyze_threats(game, my_player)
             game.board[r][c] = 0
@@ -508,7 +508,7 @@ class MinimaxAgent:
                 return (r, c)
 
         # Block opponent's immediate strong threats (open-four/doubles)
-        for r, c in sorted_moves[:15]:
+        for r, c in sorted_moves[:20]:
             game.board[r][c] = opponent
             opp_stats = self._analyze_threats(game, opponent)
             game.board[r][c] = 0
@@ -526,7 +526,7 @@ class MinimaxAgent:
         # LATE-GAME 2-PLY THREAT SOLVER
         # Search our move → opponent response → our reply for forced threats
         # =================================================================
-        if move_count > 160:
+        if move_count > 160:  # Back to conservative timing
             for r, c in sorted_moves[:12]:
                 if not game.is_valid_move(r, c):
                     continue
@@ -584,9 +584,9 @@ class MinimaxAgent:
         alpha = float('-inf')
         beta = float('inf')
 
-        # Use top moves from priority ordering (wider beam to avoid missing wins)
-        # Slightly wider beam to reduce tactical misses
-        search_moves = sorted_moves[:16] if len(sorted_moves) > 16 else sorted_moves
+        # Use top moves from priority ordering (wider beam for better coverage)
+        # Expanded beam width to explore more tactical options
+        search_moves = sorted_moves[:22] if len(sorted_moves) > 22 else sorted_moves
 
         for move in search_moves:
             r, c = move
@@ -674,9 +674,10 @@ class MinimaxAgent:
 
     def evaluate_board(self, game: GomokuGame, original_player: int) -> float:
         """
-        Hàm đánh giá tối ưu cho Depth 3+Memoization:
+        Hàm đánh giá tối ưu cho Depth 4 + Memoization:
         - Aggressive scoring cho win-conditions
         - Adaptive defense based on board state
+        - Stronger threat detection
         """
         opponent = 3 - original_player
 
@@ -694,25 +695,28 @@ class MinimaxAgent:
         # 2. ADAPTIVE SCORING - Tăng aggressive khi leading
         moves_count = len(game.move_history)
         
-        # Khi board đã có nhiều moves (late game), ưu tiên finish
-        if moves_count > 140:  # Late game aggression
-            aggressive_mul = 2.0
-            defense_mul = 4.5
-        else:
-            aggressive_mul = 1.4
+        # Balanced aggressive strategy
+        if moves_count > 150:  # Very late game
+            aggressive_mul = 2.5
+            defense_mul = 5.0
+        elif moves_count > 100:  # Mid-late game
+            aggressive_mul = 2.5
             defense_mul = 6.0
+        else:  # Early/mid game - BE MORE AGGRESSIVE EARLY
+            aggressive_mul = 2.0
+            defense_mul = 6.5
 
         # Điểm tấn công (tăng mạnh để ưu tiên tấn công)
-        my_score = (my_stats['four'] * 35000 * aggressive_mul +
-            my_stats['open_three'] * 32000 * aggressive_mul +
-                my_stats['three'] * 2200 +
-                my_stats['open_two'] * 600)
+        my_score = (my_stats['four'] * 48000 * aggressive_mul +     
+            my_stats['open_three'] * 40000 * aggressive_mul +       
+                my_stats['three'] * 4000 +                          
+                my_stats['open_two'] * 1500)
 
-        # Điểm đe dọa của đối thủ
-        opp_score = (opp_stats['four'] * 35000 +
-             opp_stats['open_three'] * 32000 +
-                 opp_stats['three'] * 2200 +
-                 opp_stats['open_two'] * 600)
+        # Điểm đe dọa của đối thủ - DEFENSIVE
+        opp_score = (opp_stats['four'] * 50000 +                   
+             opp_stats['open_three'] * 45000 +                     
+                 opp_stats['three'] * 4500 +                       
+                 opp_stats['open_two'] * 2000)
 
         # TRỌNG SỐ PHÒNG THỦ: Adaptive
         return my_score - (opp_score * defense_mul)

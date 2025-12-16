@@ -20,59 +20,47 @@ from Gomoku_old import (
 from Gomoku import GomokuGame, MinimaxAgent, SmartRandomAgent, play_game as play_game_new
 from GomokuML import SimpleNNAgent
 import time
+from multiprocessing import Process, Queue, Pool
+from functools import partial
 
-def benchmark_old_vs_random():
-    """Test Old Minimax Agent vs Random"""
-    print("\n" + "=" * 80)
-    print("OLD MINIMAX AGENT vs RANDOM (30 games)")
-    print("=" * 80 + "\n")
-    
+def run_single_old_game(game_num):
+    """Run a single game for old version"""
     minimax = MinimaxAgentOldVersion(name="OldMinimax", max_depth=3, search_radius=2)
     random_agent = SmartRandomAgentOldVersion(name="Random")
-    
-    wins = 0
-    losses = 0
-    draws = 0
-    start = time.time()
-    
-    for i in range(30):
-        print(f"  Game {i+1}/30...", end=" ", flush=True)
-        winner, moves = play_game_old(minimax, random_agent, display=False)
-        if winner == 1:
-            wins += 1
-            result = "WIN"
-        elif winner == 0:
-            draws += 1
-            result = "DRAW"
-        else:
-            losses += 1
-            result = "LOSS"
-        print(f"{result} ({moves} moves)")
-    
-    elapsed = time.time() - start
-    winrate = 100 * wins / 30
-    print(f"\n  Result: {wins}/30 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
-    print(f"  Time: {elapsed:.1f}s | Avg: {elapsed/30:.2f}s/game\n")
-    
-    return winrate
+    winner, moves = play_game_old(minimax, random_agent, display=False)
+    return (game_num, winner, moves)
 
-def benchmark_new_vs_random():
-    """Test New Minimax Agent vs Random"""
-    print("\n" + "=" * 80)
-    print("NEW MINIMAX AGENT vs RANDOM (30 games)")
-    print("=" * 80 + "\n")
-    
+def run_single_new_game(game_num):
+    """Run a single game for new version"""
     minimax = MinimaxAgent(name="NewMinimax", max_depth=3, search_radius=2)
     random_agent = SmartRandomAgent(name="Random")
+    winner, moves = play_game_new(minimax, random_agent, display=False)
+    return (game_num, winner, moves)
+
+def run_single_ml_game(game_num):
+    """Run a single game for ML version"""
+    ml_agent = SimpleNNAgent(name="ML_Agent")
+    random_agent = SmartRandomAgent(name="Random")
+    winner, moves = play_game_new(ml_agent, random_agent, display=False)
+    return (game_num, winner, moves)
+
+def benchmark_old_vs_random(queue=None):
+    """Test Old Minimax Agent vs Random"""
+    print("\n" + "=" * 80)
+    print("OLD MINIMAX AGENT vs RANDOM (30 games) - PARALLEL")
+    print("=" * 80 + "\n")
     
     wins = 0
     losses = 0
     draws = 0
     start = time.time()
     
-    for i in range(30):
-        print(f"  Game {i+1}/30...", end=" ", flush=True)
-        winner, moves = play_game_new(minimax, random_agent, display=False)
+    # Run games in parallel
+    with Pool(processes=6) as pool:
+        results = pool.map(run_single_old_game, range(30))
+    
+    # Process results
+    for game_num, winner, moves in sorted(results, key=lambda x: x[0]):
         if winner == 1:
             wins += 1
             result = "WIN"
@@ -82,32 +70,34 @@ def benchmark_new_vs_random():
         else:
             losses += 1
             result = "LOSS"
-        print(f"{result} ({moves} moves)")
+        print(f"  [OLD] Game {game_num+1}/30... {result} ({moves} moves)")
     
     elapsed = time.time() - start
     winrate = 100 * wins / 30
-    print(f"\n  Result: {wins}/30 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
-    print(f"  Time: {elapsed:.1f}s | Avg: {elapsed/30:.2f}s/game\n")
+    print(f"\n  [OLD] Result: {wins}/30 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
+    print(f"  [OLD] Time: {elapsed:.1f}s | Avg: {elapsed/30:.2f}s/game\n")
     
+    if queue:
+        queue.put(("old", winrate, wins, draws, losses, elapsed))
     return winrate
 
-def benchmark_ml_vs_random():
-    """Test ML Agent vs Random"""
+def benchmark_new_vs_random(queue=None):
+    """Test New Minimax Agent vs Random"""
     print("\n" + "=" * 80)
-    print("ML AGENT vs RANDOM (20 games)")
+    print("NEW MINIMAX AGENT vs RANDOM (30 games) - PARALLEL")
     print("=" * 80 + "\n")
-    
-    ml_agent = SimpleNNAgent(name="ML_Agent")
-    random_agent = SmartRandomAgent(name="Random")
     
     wins = 0
     losses = 0
     draws = 0
     start = time.time()
     
-    for i in range(20):
-        print(f"  Game {i+1}/20...", end=" ", flush=True)
-        winner, moves = play_game_new(ml_agent, random_agent, display=False)
+    # Run games in parallel
+    with Pool(processes=6) as pool:
+        results = pool.map(run_single_new_game, range(30))
+    
+    # Process results
+    for game_num, winner, moves in sorted(results, key=lambda x: x[0]):
         if winner == 1:
             wins += 1
             result = "WIN"
@@ -117,31 +107,105 @@ def benchmark_ml_vs_random():
         else:
             losses += 1
             result = "LOSS"
-        print(f"{result} ({moves} moves)")
+        print(f"  [NEW] Game {game_num+1}/30... {result} ({moves} moves)")
+    
+    elapsed = time.time() - start
+    winrate = 100 * wins / 30
+    print(f"\n  [NEW] Result: {wins}/30 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
+    print(f"  [NEW] Time: {elapsed:.1f}s | Avg: {elapsed/30:.2f}s/game\n")
+    
+    if queue:
+        queue.put(("new", winrate, wins, draws, losses, elapsed))
+    return winrate
+
+def benchmark_ml_vs_random(queue=None):
+    """Test ML Agent vs Random"""
+    print("\n" + "=" * 80)
+    print("ML AGENT vs RANDOM (20 games) - PARALLEL")
+    print("=" * 80 + "\n")
+    
+    wins = 0
+    losses = 0
+    draws = 0
+    start = time.time()
+    
+    # Run games in parallel
+    with Pool(processes=6) as pool:
+        results = pool.map(run_single_ml_game, range(20))
+    
+    # Process results
+    for game_num, winner, moves in sorted(results, key=lambda x: x[0]):
+        if winner == 1:
+            wins += 1
+            result = "WIN"
+        elif winner == 0:
+            draws += 1
+            result = "DRAW"
+        else:
+            losses += 1
+            result = "LOSS"
+        print(f"  [ML] Game {game_num+1}/20... {result} ({moves} moves)")
     
     elapsed = time.time() - start
     winrate = 100 * wins / 20
-    print(f"\n  Result: {wins}/20 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
-    print(f"  Time: {elapsed:.1f}s | Avg: {elapsed/20:.2f}s/game\n")
+    print(f"\n  [ML] Result: {wins}/20 = {winrate:.1f}% | Draws: {draws} | Losses: {losses}")
+    print(f"  [ML] Time: {elapsed:.1f}s | Avg: {elapsed/20:.2f}s/game\n")
     
+    if queue:
+        queue.put(("ml", winrate, wins, draws, losses, elapsed))
     return winrate
 
 def main():
     print("\n" + "=" * 80)
-    print("GOMOKU AGENTS COMPARISON TEST")
+    print("GOMOKU AGENTS COMPARISON TEST (PARALLEL EXECUTION)")
     print("=" * 80)
     
-    old_winrate = benchmark_old_vs_random()
-    new_winrate = benchmark_new_vs_random()
-    ml_winrate = benchmark_ml_vs_random()
+    # Create queue for collecting results
+    result_queue = Queue()
     
+    # Create processes for parallel execution
+    p1 = Process(target=benchmark_old_vs_random, args=(result_queue,))
+    p2 = Process(target=benchmark_new_vs_random, args=(result_queue,))
+    p3 = Process(target=benchmark_ml_vs_random, args=(result_queue,))
+    
+    # Start all processes
+    start_time = time.time()
+    p1.start()
+    p2.start()
+    p3.start()
+    
+    # Wait for all to complete
+    p1.join()
+    p2.join()
+    p3.join()
+    
+    total_time = time.time() - start_time
+    
+    # Collect results
+    results = {}
+    while not result_queue.empty():
+        name, winrate, wins, draws, losses, elapsed = result_queue.get()
+        results[name] = {
+            'winrate': winrate,
+            'wins': wins,
+            'draws': draws,
+            'losses': losses,
+            'time': elapsed
+        }
+    
+    # Print summary
     print("\n" + "=" * 80)
     print("FINAL COMPARISON")
     print("=" * 80)
-    print(f"Old Minimax: {old_winrate:.1f}%")
-    print(f"New Minimax: {new_winrate:.1f}%")
-    print(f"ML Agent:    {ml_winrate:.1f}%")
+    print(f"Old Minimax: {results.get('old', {}).get('winrate', 0):.1f}%")
+    print(f"New Minimax: {results.get('new', {}).get('winrate', 0):.1f}%")
+    print(f"ML Agent:    {results.get('ml', {}).get('winrate', 0):.1f}%")
+    print(f"\nTotal parallel execution time: {total_time:.1f}s")
     print("=" * 80 + "\n")
+    
+    old_winrate = results.get('old', {}).get('winrate', 0)
+    new_winrate = results.get('new', {}).get('winrate', 0)
+    ml_winrate = results.get('ml', {}).get('winrate', 0)
     
     improvement = new_winrate - old_winrate
     print(f"Improvement from Old to New Minimax: {improvement:+.1f}%")
