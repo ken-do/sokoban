@@ -2,6 +2,8 @@ import numpy as np
 from typing import Tuple, List, Optional
 import random
 import time
+from multiprocessing import Pool, cpu_count
+import psutil
 
 
 class GomokuGame:
@@ -698,6 +700,28 @@ def play_game(agent1, agent2, display=True, game_number=None) -> Tuple[int, int]
     return 0, move_count
 
 
+def run_parallel_game(args):
+    """Run a single game and return result - must be at module level for multiprocessing on Windows"""
+    game_num, agent1, agent2, is_agent1_first = args
+    
+    if is_agent1_first:
+        winner, moves = play_game(agent1, agent2, display=False, game_number=game_num)
+        if winner == 1:
+            return (game_num, "WIN", moves)
+        elif winner == 0:
+            return (game_num, "DRAW", moves)
+        else:
+            return (game_num, "LOSS", moves)
+    else:
+        winner, moves = play_game(agent2, agent1, display=False, game_number=game_num)
+        if winner == 2:
+            return (game_num, "WIN", moves)
+        elif winner == 0:
+            return (game_num, "DRAW", moves)
+        else:
+            return (game_num, "LOSS", moves)
+
+
 def test_agents_detailed(agent1, agent2, num_games=2):
     wins = {1: 0, 2: 0, 0: 0}
 
@@ -735,12 +759,74 @@ def test_agents_detailed(agent1, agent2, num_games=2):
 
 
 if __name__ == "__main__":
-    NUM_GAMES = 10
+    NUM_GAMES = 30
     TEST_DEPTH = 3
 
-
+    # Calculate available CPU cores
+    total_cores = cpu_count()
+    try:
+        cpu_percent = psutil.cpu_percent(interval=0.1)
+        idle_percent = 100 - cpu_percent
+        estimated_idle_cores = max(1, int(total_cores * idle_percent / 100))
+    except:
+        estimated_idle_cores = max(1, total_cores - 2)
+    
+    # Use reasonable number of workers
+    num_workers = min(estimated_idle_cores, total_cores - 1, 8)
+    
+    print("\n" + "=" * 80)
+    print("MINIMAX AGENT PARALLEL TEST")
+    print("=" * 80)
+    print(f"\nSystem Info:")
+    print(f"  Total CPU cores: {total_cores}")
+    print(f"  Estimated idle cores: {estimated_idle_cores}")
+    print(f"  Using {num_workers} parallel workers for game execution\n")
+    
     minimax_ai = MinimaxAgent(name="Minimax_Agent", max_depth=TEST_DEPTH, search_radius=2)
-
     opponent = SmartRandomAgent(name="Random_Agent")
-
-    test_agents_detailed(minimax_ai, opponent, num_games=NUM_GAMES)
+    
+    print(f"Testing {minimax_ai.name} vs {opponent.name} ({NUM_GAMES} games in parallel)...\n")
+    
+    # Prepare game arguments
+    game_args = [
+        (i, minimax_ai, opponent, i % 2 == 0)
+        for i in range(NUM_GAMES)
+    ]
+    
+    start_time = time.time()
+    
+    # Run games in parallel
+    with Pool(processes=num_workers) as pool:
+        results = pool.map(run_parallel_game, game_args)
+    
+    elapsed = time.time() - start_time
+    
+    # Process results
+    wins = sum(1 for _, result, _ in results if result == "WIN")
+    draws = sum(1 for _, result, _ in results if result == "DRAW")
+    losses = sum(1 for _, result, _ in results if result == "LOSS")
+    
+    # Display results
+    for game_num, result, moves in sorted(results):
+        print(f"  Game {game_num+1}/{NUM_GAMES}... {result} ({moves} moves)")
+    
+    winrate = (wins / NUM_GAMES) * 100
+    
+    print("\n" + "=" * 80)
+    print("RESULTS")
+    print("=" * 80)
+    print(f"Wins:     {wins}/{NUM_GAMES} ({winrate:.1f}%)")
+    print(f"Draws:    {draws}")
+    print(f"Losses:   {losses}")
+    print(f"Time:     {elapsed:.1f}s (avg: {elapsed/NUM_GAMES:.2f}s/game)")
+    print(f"Speedup:  ~{num_workers:.1f}x parallelization")
+    print("=" * 80)
+    
+    if winrate >= 90:
+        print(f"SUCCESS! Minimax Agent achieves {winrate:.1f}% (target: 90%)")
+    elif winrate >= 75:
+        print(f"GOOD: {winrate:.1f}% (above 75% baseline)")
+    else:
+        print(f"BELOW TARGET: {winrate:.1f}% (need {90 - winrate:.1f}% more)")
+    
+    print("=" * 80 + "\n")
